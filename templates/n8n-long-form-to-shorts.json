@@ -1,0 +1,215 @@
+{
+  "name": "Rendley — Long-Form to Shorts",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Long-Form → Shorts\n\nDrop a long video URL on the webhook. The Rendley agent transcribes it, picks the strongest self-contained moment, cuts it, reframes to 9:16 with subject tracking, and burns in captions. The same node then exports the MP4, and the flow copies it to your Google Drive.\n\n**Set up:** add your Rendley credential, connect Google Drive, and set `YOUR_DRIVE_FOLDER_ID`.\n\n**Send:** `POST /webhook/longform-to-shorts` with `{ \"video_url\": \"https://…/talk.mp4\" }`.\n\n**Plan:** the agent and the export need a paid Rendley plan; transcription, reframing and captions consume credits.",
+        "height": 320,
+        "width": 380,
+        "color": 4
+      },
+      "id": "aa000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nThe Rendley agent and export both require a **paid Rendley plan** (HTTP 402 otherwise). Transcription, reframing and captioning consume AI **credits**. Rough order of magnitude: **~40–120 credits** per short depending on source length. Call the node's *Estimate Cost* / `/cost` endpoints first if you need an exact figure.",
+        "height": 220,
+        "width": 320,
+        "color": 3
+      },
+      "id": "aa000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Why wait inline?\nThe agent edit can run for minutes. **Wait for Completion** + **Export Video After Edit** keep this a single linear flow: the node polls Rendley every 15 s, exports the project when the edit lands, and hands the MP4 URL to the next node.\n\nFor very long jobs or big batches, turn **Wait for Completion** off and poll yourself: a **Wait** node of 70 s or more, then **Agent > Get Job**, then an **If** that loops until `status` is `completed`. n8n offloads waits that long, so they cost no execution time.",
+        "height": 220,
+        "width": 340,
+        "color": 5
+      },
+      "id": "aa000000-0000-4000-8000-000000000003",
+      "name": "Why wait inline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy the file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. This flow downloads the MP4 and re-uploads it to your own Google Drive so you keep a permanent copy. Never store a Rendley URL for later.",
+        "height": 200,
+        "width": 340,
+        "color": 6
+      },
+      "id": "aa000000-0000-4000-8000-000000000004",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        900,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "longform-to-shorts",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "aa000000-0000-4000-8000-000000000010",
+      "name": "Incoming Video URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        480
+      ],
+      "webhookId": "longform-to-shorts-in"
+    },
+    {
+      "parameters": {
+        "resource": "agent",
+        "operation": "run",
+        "prompt": "Turn this long-form video into one finished vertical short.\n\n1. Transcribe every speech clip so you can work from word-level timings.\n2. Find the single strongest 20–60s moment: a hook in the first 2 seconds, one self-contained idea, and a clean payoff. State its start/end before editing.\n3. Keep only that range and close the gaps so the short starts at 0.\n4. Reframe the video clip to 9:16 with reframeClip (subject tracking) — do not use a static crop.\n5. Remove filler words and dead air inside the kept range, then add word-level captions with addSubtitles, styled for mobile.\n\nReport the moment you chose and the final duration.",
+        "files": {
+          "file": [
+            {
+              "url": "={{ $json.body.video_url }}"
+            }
+          ]
+        },
+        "renderAfter": true,
+        "waitForCompletion": true,
+        "renderSettings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        },
+        "pollInterval": 15,
+        "pollTimeout": 60
+      },
+      "id": "aa000000-0000-4000-8000-000000000011",
+      "name": "Rendley — Build Short",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        180,
+        480
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.video_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "aa000000-0000-4000-8000-000000000022",
+      "name": "Download MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ 'short-' + $now.format('yyyyLLdd-HHmmss') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "aa000000-0000-4000-8000-000000000023",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1040,
+        480
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Video URL": {
+      "main": [
+        [
+          {
+            "node": "Rendley — Build Short",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendley — Build Short": {
+      "main": [
+        [
+          {
+            "node": "Download MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

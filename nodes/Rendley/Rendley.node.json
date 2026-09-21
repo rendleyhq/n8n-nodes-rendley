@@ -1,0 +1,37 @@
+{
+  "node": "n8n-nodes-rendley.rendley",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": [
+    "Marketing & Content",
+    "Productivity"
+  ],
+  "resources": {
+    "credentialDocumentation": [
+      {
+        "url": "https://docs.rendley.com/api/authentication"
+      }
+    ],
+    "primaryDocumentation": [
+      {
+        "url": "https://github.com/rendleyhq/n8n-nodes-rendley#readme"
+      }
+    ]
+  },
+  "alias": [
+    "Rendley",
+    "AI video",
+    "video editor",
+    "video generation",
+    "text to video",
+    "prompt to video",
+    "text to speech",
+    "transcription",
+    "dubbing",
+    "lip sync",
+    "image generation",
+    "music generation",
+    "render MP4",
+    "video export"
+  ]
+}

@@ -1,0 +1,245 @@
+{
+  "name": "Rendley — Product Photo to Video Ad",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Product Photo → Video Ad\n\nPOST a product image URL and an optional creative prompt. Rendley animates the still into a short video ad with `generate-video` (image-to-video), the node resolves the result to a fresh URL, and the flow copies the MP4 to your storage.\n\n**Send:** `POST /webhook/product-video-ad` with `{ \"image_url\": \"https://…/shoe.jpg\", \"prompt\": \"slow orbit, studio light, premium feel\" }`.",
+        "height": 280,
+        "width": 400,
+        "color": 4
+      },
+      "id": "ff000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nVideo generation is one of the heavier AI actions: needs a **paid Rendley plan** and consumes **credits** — commonly **~100–300 credits** per clip depending on model, resolution and duration. Toggle *Estimate Cost Only* (hits `/cost`) for an exact quote first.",
+        "height": 200,
+        "width": 320,
+        "color": 3
+      },
+      "id": "ff000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Polled inline\nThe node waits for the generation with **Wait for Completion**, which keeps the flow one linear chain. Keep the **Poll Interval** at 10 s or more: generation can take a couple of minutes.",
+        "height": 190,
+        "width": 360,
+        "color": 5
+      },
+      "id": "ff000000-0000-4000-8000-000000000003",
+      "name": "Why inline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy the file!\nThe generated clip is a **presigned media URL that expires after ~3 hours** (exports expire after ~4h). This flow downloads it and re-uploads to your own Google Drive so the ad is safe to reuse later.",
+        "height": 180,
+        "width": 340,
+        "color": 6
+      },
+      "id": "ff000000-0000-4000-8000-000000000004",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "product-video-ad",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000010",
+      "name": "Incoming Product Photo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        440
+      ],
+      "webhookId": "product-video-ad-in"
+    },
+    {
+      "parameters": {
+        "resource": "project",
+        "operation": "create",
+        "name": "={{ 'Product Ad ' + $now.format('yyyy-LL-dd HH:mm') }}"
+      },
+      "id": "ff000000-0000-4000-8000-000000000011",
+      "name": "Create Project",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        60,
+        440
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "generate",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "aiPrompt": "={{ $('Incoming Product Photo').item.json.body.prompt || 'Cinematic product hero shot, smooth camera move, soft studio lighting, premium look' }}",
+        "aiOptions": {
+          "aspect_ratio": "9:16",
+          "duration": 5,
+          "start_image": "={{ $('Incoming Product Photo').item.json.body.image_url }}"
+        },
+        "estimateCostOnly": false,
+        "waitForCompletion": true,
+        "pollInterval": 10
+      },
+      "id": "ff000000-0000-4000-8000-000000000012",
+      "name": "Rendley — Generate Video",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        300,
+        440
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.download_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "ff000000-0000-4000-8000-000000000013",
+      "name": "Download Ad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ 'product-ad-' + $now.format('yyyyLLdd-HHmmss') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000014",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        820,
+        440
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Product Photo": {
+      "main": [
+        [
+          {
+            "node": "Create Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Project": {
+      "main": [
+        [
+          {
+            "node": "Rendley — Generate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendley — Generate Video": {
+      "main": [
+        [
+          {
+            "node": "Download Ad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Ad": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

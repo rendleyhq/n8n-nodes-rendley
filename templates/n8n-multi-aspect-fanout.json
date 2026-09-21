@@ -1,0 +1,318 @@
+{
+  "name": "Rendley — Multi-Aspect Fan-Out",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## One Master → Every Aspect Ratio\n\nGive one finished master project. This fan-out loops over **9:16, 1:1, 4:5 and 16:9**, reframes the project to each ratio with subject tracking, exports an MP4 per ratio, and copies each to your storage.\n\n**Set up:** put your finished project's ID in the **Set Master Project** node, then run.",
+        "height": 260,
+        "width": 380,
+        "color": 4
+      },
+      "id": "cc000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nReframing runs subject detection on every clip and each ratio is a separate export — both need a **paid Rendley plan** and consume **credits**. Budget **~30–80 credits per ratio**, so a full 4-ratio fan-out is roughly **~120–320 credits**.",
+        "height": 200,
+        "width": 320,
+        "color": 3
+      },
+      "id": "cc000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Why one ratio at a time?\nFor a single long job, the simplest pattern is **Wait for Completion** on the node itself. A fan-out is the exception: each branch must stay bound to its own aspect ratio, Reframing sequentially (reframe → export → next ratio) keeps each ratio isolated, so here we let the node wait inline with **Wait for Completion**.",
+        "height": 220,
+        "width": 400,
+        "color": 5
+      },
+      "id": "cc000000-0000-4000-8000-000000000003",
+      "name": "Why inline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy each file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. Every loop iteration downloads its MP4 and re-uploads it to your own Google Drive so all four ratios are safely stored.",
+        "height": 200,
+        "width": 340,
+        "color": 6
+      },
+      "id": "cc000000-0000-4000-8000-000000000004",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        980,
+        680
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cc000000-0000-4000-8000-000000000010",
+      "name": "Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "project_id",
+              "type": "string",
+              "value": "YOUR_MASTER_PROJECT_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc000000-0000-4000-8000-000000000011",
+      "name": "Set Master Project",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        60,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const projectId = $input.first().json.project_id;\nreturn ['9:16', '1:1', '4:5', '16:9'].map((ratio) => ({\n  json: { project_id: projectId, ratio },\n}));"
+      },
+      "id": "cc000000-0000-4000-8000-000000000012",
+      "name": "Fan Out Ratios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "cc000000-0000-4000-8000-000000000013",
+      "name": "Loop Over Ratios",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        500,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "edit",
+        "operation": "reframe",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.project_id }}"
+        },
+        "editOptions": {
+          "aspectRatio": "={{ $json.ratio }}"
+        },
+        "renderAfter": true,
+        "renderSettings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        },
+        "waitForCompletion": true
+      },
+      "id": "cc000000-0000-4000-8000-000000000014",
+      "name": "Rendley — Reframe + Export",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        500,
+        720
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.video_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "cc000000-0000-4000-8000-000000000015",
+      "name": "Download MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ 'reframe-' + ($json.ratio || $('Loop Over Ratios').item.json.ratio).replace(':','x') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "cc000000-0000-4000-8000-000000000016",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        940,
+        720
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "cc000000-0000-4000-8000-000000000017",
+      "name": "All Ratios Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Set Master Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Master Project": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Ratios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Ratios": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Ratios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Ratios": {
+      "main": [
+        [
+          {
+            "node": "All Ratios Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rendley — Reframe + Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendley — Reframe + Export": {
+      "main": [
+        [
+          {
+            "node": "Download MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Ratios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

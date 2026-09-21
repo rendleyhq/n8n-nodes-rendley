@@ -1,0 +1,215 @@
+{
+  "name": "Rendley — Remove Filler Words",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Remove Filler Words + Silences\n\nPOST a talking-head video to the webhook. The Rendley agent transcribes it, then cuts fillers (\"um\", \"uh\", false starts, repeated words) and trims long silences without sounding chopped. The same node then exports the MP4, and the flow copies it to your Google Drive.\n\n**Set up:** add your Rendley credential, connect Google Drive, and set `YOUR_DRIVE_FOLDER_ID`.\n\n**Send:** `POST /webhook/remove-filler-words` with `{ \"video_url\": \"https://…/raw.mp4\" }`.\n\n> Prefer a folder watcher? Swap the Webhook for a Google Drive **Trigger** and feed the file's shareable URL into the Rendley node.\n\n**Plan:** the agent and the export need a paid Rendley plan; transcription, reframing and captions consume credits.",
+        "height": 340,
+        "width": 400,
+        "color": 4
+      },
+      "id": "bb000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -180,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nThe agent edit and the export need a **paid Rendley plan**. Transcription + cutting consume AI **credits** — roughly **~20–60 credits** for a few minutes of talking-head footage. Costs scale with duration.",
+        "height": 200,
+        "width": 320,
+        "color": 3
+      },
+      "id": "bb000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Why wait inline?\nThe agent edit can run for minutes. **Wait for Completion** + **Export Video After Edit** keep this a single linear flow: the node polls Rendley every 15 s, exports the project when the edit lands, and hands the MP4 URL to the next node.\n\nFor very long jobs or big batches, turn **Wait for Completion** off and poll yourself: a **Wait** node of 70 s or more, then **Agent > Get Job**, then an **If** that loops until `status` is `completed`. n8n offloads waits that long, so they cost no execution time.",
+        "height": 200,
+        "width": 340,
+        "color": 5
+      },
+      "id": "bb000000-0000-4000-8000-000000000003",
+      "name": "Why wait inline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -180,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy the file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. This flow downloads the MP4 and re-uploads it to your own Google Drive before returning the link.",
+        "height": 180,
+        "width": 340,
+        "color": 6
+      },
+      "id": "bb000000-0000-4000-8000-000000000004",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        900,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "remove-filler-words",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "bb000000-0000-4000-8000-000000000010",
+      "name": "Incoming Video URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        460
+      ],
+      "webhookId": "remove-filler-words-in"
+    },
+    {
+      "parameters": {
+        "resource": "agent",
+        "operation": "run",
+        "prompt": "Clean up the spoken audio in this video so it sounds tighter without sounding chopped.\n\n1. Transcribe every clip that contains speech and wait for the word-level transcript before editing.\n2. Cut filler words and disfluencies (\"um\", \"uh\", \"er\", \"like\" as filler, \"you know\", \"I mean\"), stutters, repeated words and false starts.\n3. Trim every silence longer than ~0.6s down to about 0.6s rather than removing it entirely, so delivery keeps its rhythm.\n4. Express each cut as an explicit start/end range in seconds, pad inward slightly so cuts land in the silence, and apply them with removeClipSegments. Never cut mid-word or a word that carries meaning.\n\nReport the number of ranges removed, seconds saved, and the new duration.",
+        "files": {
+          "file": [
+            {
+              "url": "={{ $json.body.video_url }}"
+            }
+          ]
+        },
+        "renderAfter": true,
+        "waitForCompletion": true,
+        "renderSettings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        },
+        "pollInterval": 15,
+        "pollTimeout": 60
+      },
+      "id": "bb000000-0000-4000-8000-000000000011",
+      "name": "Rendley — Clean Audio",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        200,
+        460
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.video_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "bb000000-0000-4000-8000-000000000022",
+      "name": "Download MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ 'clean-' + $now.format('yyyyLLdd-HHmmss') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "bb000000-0000-4000-8000-000000000023",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1020,
+        460
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Video URL": {
+      "main": [
+        [
+          {
+            "node": "Rendley — Clean Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendley — Clean Audio": {
+      "main": [
+        [
+          {
+            "node": "Download MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

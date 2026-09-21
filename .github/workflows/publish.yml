@@ -1,0 +1,87 @@
+# Publishes n8n-nodes-rendley to npm on every push to the `production` branch
+# (or on a manual run) when the version in package.json is not on npm yet. An
+# already-published version is skipped, not failed, so the branch can be
+# fast-forwarded freely.
+#
+# To release: bump the version in package.json, add a CHANGELOG.md entry,
+# merge to main, then fast-forward `production` to main:
+#
+#   git push origin main:production
+#
+# Publishing uses npm Trusted Publishing with a provenance attestation, so no
+# npm token is stored. The package's trusted publisher on npmjs.com must be:
+#   repository  rendleyhq/n8n-nodes-rendley
+#   workflow    publish.yml
+#   environment npm
+# Each publish is also tagged as a GitHub release v<version>.
+
+name: Publish
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  detect:
+    name: Is this version on npm already?
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+      - id: check
+        run: |
+          set -eu
+          v=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "n8n-nodes-rendley@$v" version 2>/dev/null)" ]; then publish=false; else publish=true; fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "n8n-nodes-rendley $v: publish=$publish"
+
+  publish:
+    name: n8n-nodes-rendley ${{ needs.detect.outputs.version }} to npm
+    needs: detect
+    if: needs.detect.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write   # provenance attestation
+      contents: write   # GitHub release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Upgrade npm (Trusted Publishing needs npm 11.5.1 or newer)
+        run: npm install -g npm@latest
+      - run: npm ci
+      - name: Lint, build, test, scan
+        run: |
+          npm run lint
+          npm run build
+          npm test
+          npm run scan
+      - name: Publish with provenance
+        env:
+          RELEASE_MODE: 'true'   # lets `n8n-node prerelease` allow npm publish
+        run: npm publish --provenance --access public
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ needs.detect.outputs.version }}"
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes

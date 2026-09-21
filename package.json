@@ -1,0 +1,77 @@
+{
+  "name": "n8n-nodes-rendley",
+  "version": "0.2.3",
+  "description": "Rendley node for n8n. Create, edit, and automate video with the Rendley AI agent, AI video, image, music and speech generation, transcription, dubbing, lip sync, media uploads, brand kits and MP4 rendering.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "n8n-node",
+    "rendley",
+    "ai-video",
+    "ai-video-editor",
+    "video-generation",
+    "text-to-video",
+    "prompt-to-video",
+    "video-editing",
+    "text-to-speech",
+    "transcription",
+    "video-dubbing",
+    "lip-sync",
+    "image-generation",
+    "mp4-export",
+    "video-automation"
+  ],
+  "license": "MIT",
+  "homepage": "https://rendley.com",
+  "author": {
+    "name": "Rendley",
+    "email": "support@rendley.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rendleyhq/n8n-nodes-rendley.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rendleyhq/n8n-nodes-rendley/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "n8n-node build && node scripts/copy-codex.mjs",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "node test/node.test.cjs",
+    "test:live": "node test/live.test.cjs",
+    "scan": "node test/scan.mjs",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/RendleyApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Rendley/Rendley.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "^0.47.0",
+    "@n8n/scan-community-package": "0.35.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.32.0",
+    "n8n-workflow": "^2.16.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

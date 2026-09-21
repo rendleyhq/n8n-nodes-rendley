@@ -1,0 +1,56 @@
+{
+  "name": "Rendley AI Video Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1a1e1a1-0000-4000-8000-000000000001",
+      "name": "When clicking Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "resource": "agent",
+        "operation": "run",
+        "prompt": "Create a 15-second promo video with upbeat music and bold captions.",
+        "waitForCompletion": true,
+        "renderAfter": true,
+        "renderSettings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        }
+      },
+      "id": "b1a1e1a1-0000-4000-8000-000000000002",
+      "name": "Rendley",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [520, 300],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking Test": {
+      "main": [
+        [
+          {
+            "node": "Rendley",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

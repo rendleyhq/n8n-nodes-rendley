@@ -1,0 +1,162 @@
+{
+  "name": "Rendley — Transcript to Content",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Transcript → Content\n\nPOST a video URL. Rendley transcribes it, then an LLM turns the transcript into a **blog post**, **show notes**, and **social copy** in one pass. The output is structured JSON you can route to your CMS, newsletter, or scheduler.\n\n**Send:** `POST /webhook/transcript-to-content` with `{ \"video_url\": \"https://…/episode.mp4\" }`.",
+        "height": 260,
+        "width": 380,
+        "color": 4
+      },
+      "id": "ee000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 120]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nTranscription is an AI action that needs a **paid Rendley plan** and consumes **credits** — roughly **~1 credit per minute** of audio. The LLM step bills to *your own* model provider, separately from Rendley.",
+        "height": 190,
+        "width": 320,
+        "color": 3
+      },
+      "id": "ee000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, 120]
+    },
+    {
+      "parameters": {
+        "content": "### No file produced\nThis template outputs **text**, not a rendered media file, so there is nothing to copy out of Rendley before it expires. (If you later export a video in the same workflow, remember: export URLs expire after ~4h and presigned media URLs after ~3h — copy them to your own storage.)",
+        "height": 200,
+        "width": 360,
+        "color": 6
+      },
+      "id": "ee000000-0000-4000-8000-000000000003",
+      "name": "No file note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 660]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcript-to-content",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "ee000000-0000-4000-8000-000000000010",
+      "name": "Incoming Video URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-180, 440],
+      "webhookId": "transcript-to-content-in"
+    },
+    {
+      "parameters": {
+        "resource": "project",
+        "operation": "create",
+        "name": "={{ 'Transcript ' + $now.format('yyyy-LL-dd HH:mm') }}"
+      },
+      "id": "ee000000-0000-4000-8000-000000000011",
+      "name": "Create Project",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [40, 440],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "transcribe",
+        "projectId": { "__rl": true, "mode": "id", "value": "={{ $json.id }}" },
+        "mediaFile": "={{ $('Incoming Video URL').item.json.body.video_url }}",
+        "aiOptions": {},
+        "estimateCostOnly": false,
+        "waitForCompletion": true,
+        "pollInterval": 10
+      },
+      "id": "ee000000-0000-4000-8000-000000000012",
+      "name": "Rendley — Transcribe",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [280, 440],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a content repurposing assistant. From the transcript below, produce a JSON object with exactly these keys: \"blog_post\" (an 600–900 word article in Markdown), \"show_notes\" (a short summary plus 5–8 timestamped bullet points), and \"social_copy\" (an object with \"linkedin\", \"x\", and \"instagram\" caption strings). Return ONLY the JSON, no prose.\n\nTranscript:\n{{ $json.result?.text || JSON.stringify($json.result) }}",
+        "messages": {},
+        "batching": {}
+      },
+      "id": "ee000000-0000-4000-8000-000000000013",
+      "name": "Generate Content",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [540, 440]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "id": "ee000000-0000-4000-8000-000000000014",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [540, 660],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.text || '').trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = { blog_post: raw, show_notes: '', social_copy: {} };\n}\nreturn [{ json: parsed }];"
+      },
+      "id": "ee000000-0000-4000-8000-000000000015",
+      "name": "Split Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 440]
+    }
+  ],
+  "connections": {
+    "Incoming Video URL": {
+      "main": [[{ "node": "Create Project", "type": "main", "index": 0 }]]
+    },
+    "Create Project": {
+      "main": [[{ "node": "Rendley — Transcribe", "type": "main", "index": 0 }]]
+    },
+    "Rendley — Transcribe": {
+      "main": [[{ "node": "Generate Content", "type": "main", "index": 0 }]]
+    },
+    "Generate Content": {
+      "main": [[{ "node": "Split Content", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "Generate Content", "type": "ai_languageModel", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

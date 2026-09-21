@@ -1,0 +1,244 @@
+{
+  "name": "Rendley — Dubbing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Dubbing Pipeline\n\nPOST a video URL and a target language. The flow creates a project and **dubs** the video into the target language (`video-translate`) — the result is a full video whose audio track is the translated speech, with the original speaker's voice characteristics preserved. The node resolves it to a fresh presigned URL, which we download and copy to your storage.\n\n**Send:** `POST /webhook/dubbing` with `{ \"video_url\": \"https://…/en.mp4\", \"target_language\": \"es\" }`.\n\n> `target_language` must be a valid Rendley language id — see `GET /v1/ai/video-translate/languages` (the node's Output Language dropdown lists them).",
+        "height": 320,
+        "width": 400,
+        "color": 4
+      },
+      "id": "dd000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nDubbing is an AI action that consumes **credits** and needs a paid Rendley plan. Order of magnitude: **~80–200 credits** per short clip, scaling with duration. Use the action's `/cost` endpoint (the node's *Estimate Cost Only* toggle) for an exact quote before running.",
+        "height": 210,
+        "width": 320,
+        "color": 3
+      },
+      "id": "dd000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Why no lip-sync step?\nRendley's `video-translate` outputs a complete **video** (translated audio already baked in) — it has no audio-only mode. `lipsync` needs a separate **audio** track, so chaining the dub result into it does not work (the API rejects a video where audio is expected). Lip movement in the dubbed video is therefore not re-synced. If you have a standalone translated audio track (e.g. from Text to Speech), lip-sync the *original* video to that instead.\n\nThe Dub node waits inline with **Wait for Completion** (10 s+ interval) to keep the flow linear; raise **Timeout (Minutes)** for long sources.",
+        "height": 210,
+        "width": 360,
+        "color": 5
+      },
+      "id": "dd000000-0000-4000-8000-000000000003",
+      "name": "Why inline",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy the file!\nThe lip-sync result is a **presigned media URL that expires after ~3 hours** (exports expire after ~4h). This flow downloads it and re-uploads to your own Google Drive so you keep a permanent copy.",
+        "height": 190,
+        "width": 340,
+        "color": 6
+      },
+      "id": "dd000000-0000-4000-8000-000000000004",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dubbing",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "dd000000-0000-4000-8000-000000000010",
+      "name": "Incoming Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        460
+      ],
+      "webhookId": "dubbing-in"
+    },
+    {
+      "parameters": {
+        "resource": "project",
+        "operation": "create",
+        "name": "={{ 'Dub ' + $json.body.target_language + ' ' + $now.format('yyyy-LL-dd HH:mm') }}"
+      },
+      "id": "dd000000-0000-4000-8000-000000000011",
+      "name": "Create Project",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        40,
+        460
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "dub",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "mediaFile": "={{ $('Incoming Request').item.json.body.video_url }}",
+        "outputLanguage": "={{ $('Incoming Request').item.json.body.target_language }}",
+        "aiOptions": {
+          "mode": "precision"
+        },
+        "estimateCostOnly": false,
+        "waitForCompletion": true,
+        "pollInterval": 10
+      },
+      "id": "dd000000-0000-4000-8000-000000000012",
+      "name": "Rendley — Dub",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        280,
+        460
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.download_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "dd000000-0000-4000-8000-000000000014",
+      "name": "Download Dubbed Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ 'dubbed-' + $('Incoming Request').item.json.body.target_language + '-' + $now.format('yyyyLLdd-HHmmss') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "dd000000-0000-4000-8000-000000000015",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1060,
+        460
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Request": {
+      "main": [
+        [
+          {
+            "node": "Create Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Project": {
+      "main": [
+        [
+          {
+            "node": "Rendley — Dub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendley — Dub": {
+      "main": [
+        [
+          {
+            "node": "Download Dubbed Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Dubbed Video": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

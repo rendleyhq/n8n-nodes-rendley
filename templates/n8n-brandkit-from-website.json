@@ -1,0 +1,124 @@
+{
+  "name": "Rendley — Brand Kit From Website",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Brand Kit From Website\n\nPOST a website URL and a workspace ID. Rendley extracts the site's **colors, fonts and logos** into that workspace's brand kit, then this flow reads the kit back and returns a confirmation in the same request.\n\n**Send:** `POST /webhook/brandkit-import` with `{ \"website_url\": \"https://example.com\", \"workspace_id\": \"YOUR_WORKSPACE_ID\" }`.\n\nUse the imported brand kit to keep captions, colors and logos on-brand in your other Rendley video workflows.",
+        "height": 280,
+        "width": 400,
+        "color": 4
+      },
+      "id": "18000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 120]
+    },
+    {
+      "parameters": {
+        "content": "### Plan + cost\nBrand-kit import needs a valid **Rendley account / API key**. It parses a public website and is a lightweight, synchronous call — no export, and it does not burn the heavier AI **credits** that video/audio generation does. (Some plans still meter it — check your account.)",
+        "height": 200,
+        "width": 340,
+        "color": 3
+      },
+      "id": "18000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 120]
+    },
+    {
+      "parameters": {
+        "content": "### No file produced\nThis workflow writes brand data into your workspace and returns JSON — it does not create a media file, so there is nothing that expires to copy out. (Rendley export URLs expire after ~4h and presigned media URLs after ~3h in the templates that *do* produce files.)",
+        "height": 190,
+        "width": 360,
+        "color": 6
+      },
+      "id": "18000000-0000-4000-8000-000000000003",
+      "name": "No file note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 640]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brandkit-import",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "18000000-0000-4000-8000-000000000010",
+      "name": "Incoming Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-180, 420],
+      "webhookId": "brandkit-import-in"
+    },
+    {
+      "parameters": {
+        "resource": "brandKit",
+        "operation": "importFromWebsite",
+        "brandKitWorkspaceId": "={{ $json.body.workspace_id }}",
+        "websiteUrl": "={{ $json.body.website_url }}"
+      },
+      "id": "18000000-0000-4000-8000-000000000011",
+      "name": "Import Brand Kit",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [80, 420],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "brandKit",
+        "operation": "get",
+        "brandKitWorkspaceId": "={{ $('Incoming Request').item.json.body.workspace_id }}"
+      },
+      "id": "18000000-0000-4000-8000-000000000012",
+      "name": "Read Brand Kit",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [340, 420],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'imported', workspace_id: $('Incoming Request').item.json.body.workspace_id, source: $('Incoming Request').item.json.body.website_url, brand_kit: $json }) }}",
+        "options": {}
+      },
+      "id": "18000000-0000-4000-8000-000000000013",
+      "name": "Confirm",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [600, 420]
+    }
+  ],
+  "connections": {
+    "Incoming Request": {
+      "main": [[{ "node": "Import Brand Kit", "type": "main", "index": 0 }]]
+    },
+    "Import Brand Kit": {
+      "main": [[{ "node": "Read Brand Kit", "type": "main", "index": 0 }]]
+    },
+    "Read Brand Kit": {
+      "main": [[{ "node": "Confirm", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

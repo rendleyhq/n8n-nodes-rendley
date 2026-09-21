@@ -1,0 +1,30 @@
+name: CI
+
+# Pull requests only. Pushes to main are not checked; the Publish workflow
+# runs the same checks again before it publishes.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck, lint, build, test, scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run scan
+      - name: Workflow templates are valid JSON
+        run: for f in templates/*.json; do node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))"; done

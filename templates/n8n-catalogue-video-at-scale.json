@@ -1,0 +1,523 @@
+{
+  "name": "Rendley — Catalogue Video at Scale",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Catalogue Video at Scale\n\nRuns on a schedule. Reads product rows from a Google Sheet and, for each row, **POSTs `/v1/export` with an inline project JSON** (no saved project needed). It polls each export job, downloads the MP4, copies it to your storage, and writes the result back to the sheet.\n\n**Why raw HTTP for export?** Inline-project export isn't exposed on the community node's Export operation, so this template calls `POST https://api.rendley.com/v1/export` directly with a `Bearer` header. Build the `project` JSON from each row.",
+        "height": 300,
+        "width": 420,
+        "color": 4
+      },
+      "id": "17000000-0000-4000-8000-000000000001",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nExport requires an **active Rendley subscription** and consumes **credits per render** — roughly **~10–30 credits** per short catalogue clip at 1080p. Multiply by your row count and check `POST /v1/export/cost` before a big batch.",
+        "height": 200,
+        "width": 320,
+        "color": 3
+      },
+      "id": "17000000-0000-4000-8000-000000000002",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire — copy every file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. Each row's MP4 is downloaded and re-uploaded to your own Google Drive before the sheet is updated, so nothing is lost when the link expires.",
+        "height": 190,
+        "width": 360,
+        "color": 6
+      },
+      "id": "17000000-0000-4000-8000-000000000003",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Why poll here?\nRendley has no outbound webhooks, so a workflow follows a job by polling. This batch flow polls with **Wait → Get Job → IF** instead so each sheet row stays a single linear branch inside the loop. Tune the Wait duration to your render length.",
+        "height": 180,
+        "width": 340,
+        "color": 5
+      },
+      "id": "17000000-0000-4000-8000-000000000004",
+      "name": "Why poll",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "17000000-0000-4000-8000-000000000010",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Products"
+        },
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-000000000011",
+      "name": "Read Product Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        20,
+        460
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-000000000012",
+      "name": "Loop Over Rows",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        240,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build one inline Rendley project per catalogue row.\n// Replace this skeleton with your real project JSON — see the Rendley\n// timeline schema. This example just carries the row's media + title.\nconst row = $input.item.json;\nconst project = {\n  name: row.title || 'Catalogue item',\n  // e.g. layers/clips built from row.media_url, row.title, row.price, row.cta ...\n  // media: [{ url: row.media_url }],\n};\nreturn {\n  json: {\n    title: row.title || 'item',\n    export_body: {\n      project,\n      settings: { codec: 'h264', target_resolution: '1080p', quality: 'high' },\n    },\n  },\n};"
+      },
+      "id": "17000000-0000-4000-8000-000000000013",
+      "name": "Build Export Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.rendley.com/v1/export",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_RENDLEY_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.export_body) }}",
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-000000000014",
+      "name": "POST /v1/export",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "j1",
+              "name": "job_id",
+              "type": "string",
+              "value": "={{ $json.data?.job_id || $json.job_id }}"
+            },
+            {
+              "id": "j2",
+              "name": "title",
+              "type": "string",
+              "value": "={{ $('Build Export Body').item.json.title }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-000000000015",
+      "name": "Track Job",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        680,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "17000000-0000-4000-8000-000000000016",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        720
+      ],
+      "webhookId": "catalogue-export-wait"
+    },
+    {
+      "parameters": {
+        "resource": "export",
+        "operation": "getJob",
+        "jobId": "={{ $('Track Job').item.json.job_id }}"
+      },
+      "id": "17000000-0000-4000-8000-000000000017",
+      "name": "Get Export Job",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        720
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-000000000018",
+      "name": "Export Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.result?.storage_url || $json.video_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "17000000-0000-4000-8000-000000000019",
+      "name": "Download MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ ($('Track Job').item.json.title || 'catalogue').replace(/[^a-zA-Z0-9-_]/g,'-') + '.mp4' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-00000000001a",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1780,
+        640
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Results"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $('Track Job').item.json.title }}",
+            "drive_link": "={{ $json.webViewLink }}",
+            "drive_file_id": "={{ $json.id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "17000000-0000-4000-8000-00000000001b",
+      "name": "Write Result to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "17000000-0000-4000-8000-00000000001c",
+      "name": "All Rows Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        460,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Read Product Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Product Rows": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Rows": {
+      "main": [
+        [
+          {
+            "node": "All Rows Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Export Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Export Body": {
+      "main": [
+        [
+          {
+            "node": "POST /v1/export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /v1/export": {
+      "main": [
+        [
+          {
+            "node": "Track Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Job": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Export Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Export Job": {
+      "main": [
+        [
+          {
+            "node": "Export Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export Done?": {
+      "main": [
+        [
+          {
+            "node": "Download MP4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Write Result to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Result to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
