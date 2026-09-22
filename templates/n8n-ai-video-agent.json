@@ -2,12 +2,63 @@
   "name": "Rendley AI Video Agent",
   "nodes": [
     {
+      "parameters": {
+        "content": "## Rendley AI Video Agent\n\nOne node does the whole job. Describe the video, the Rendley agent builds it in a new project, and **Export Video After Edit** renders the MP4 and returns its `url`.\n\n**Set up:** add your Rendley credential, then edit the prompt. Add **Files** (public URLs) to work with your own footage or images, or pick a **Project** to edit an existing one.\n\n**Output:** `url` (MP4), `project_id`, `export_job_id`, `last_message` and `commands_applied`.",
+        "height": 300,
+        "width": 420,
+        "color": 4
+      },
+      "id": "sticky-about",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Credits\nThe agent and the export need a **paid Rendley plan** (HTTP 402 otherwise). A 15-second promo like this prompt is roughly **~30-80 credits** depending on what the agent generates (music, images, captions). Check your balance in app.rendley.com before running it in a loop.",
+        "height": 200,
+        "width": 340,
+        "color": 3
+      },
+      "id": "sticky-plan-and-cost",
+      "name": "Plan and cost",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        420,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire, copy the file!\nRendley **export URLs expire after ~4 hours**. Add an HTTP Request that downloads `url` and a storage node (Google Drive, S3, Dropbox) after this node if you need a permanent copy. Never store a Rendley URL for later.",
+        "height": 180,
+        "width": 340,
+        "color": 6
+      },
+      "id": "sticky-expiry",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        420,
+        200
+      ]
+    },
+    {
       "parameters": {},
       "id": "b1a1e1a1-0000-4000-8000-000000000001",
       "name": "When clicking Test",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [260, 300]
+      "position": [
+        -20,
+        380
+      ]
     },
     {
       "parameters": {
@@ -25,7 +76,10 @@
       "name": "Rendley",
       "type": "n8n-nodes-rendley.rendley",
       "typeVersion": 1,
-      "position": [520, 300],
+      "position": [
+        240,
+        380
+      ],
       "credentials": {
         "rendleyApi": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",

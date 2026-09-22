@@ -121,7 +121,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $json.video_url }}",
+        "url": "={{ $json.url }}",
         "options": {
           "response": {
             "response": {

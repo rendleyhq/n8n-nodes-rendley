@@ -16,19 +16,18 @@ own values.
 | [`n8n-dubbing-pipeline.json`](n8n-dubbing-pipeline.json) | Webhook (video and language) | Dub a video into another language and copy the result to Drive | Project, Video (Dub) |
 | [`n8n-transcript-to-content.json`](n8n-transcript-to-content.json) | Webhook (video URL) | Transcribe, then an LLM writes a blog post, show notes and social copy | Project, Video (Transcribe) |
 | [`n8n-product-photo-to-video-ad.json`](n8n-product-photo-to-video-ad.json) | Webhook (image URL) | Animate a product photo into a short video ad and copy it to Drive | Project, Video (Generate) |
-| [`n8n-catalogue-video-at-scale.json`](n8n-catalogue-video-at-scale.json) | Schedule | Sheet rows to inline-project exports, polled with a Wait loop, written back | Export (Get Job) plus raw HTTP export |
+| [`n8n-catalogue-video-at-scale.json`](n8n-catalogue-video-at-scale.json) | Schedule | Sheet rows to agent-made product clips, polled with a Wait loop, exported, copied to Drive, written back | Agent (Run, Get Job), Export |
 | [`n8n-brandkit-from-website.json`](n8n-brandkit-from-website.json) | Webhook (site URL) | Import a brand kit from a public website and read it back | Brand Kit |
 
 ## Patterns
 
 - **Wait inline.** Most templates leave **Wait for Completion** on, so the node polls
   Rendley and the workflow stays one linear chain.
-- **Poll with a Wait node.** The catalogue template starts jobs without waiting and
-  loops **Wait (70 s or more) → Get Job → If**. n8n offloads waits of that length, so
-  they cost no execution time. Use this for batches or very long renders.
+- **Poll with a Wait node.** The catalogue template starts the agent without waiting and
+  loops **Wait (70 s or more), Agent > Get Job, If**, with a second If that logs a failed
+  job and moves on. n8n offloads waits of that length, so they cost no execution time. Use
+  this for batches or very long jobs.
 - **Copy files out.** Rendley download and export URLs are signed and expire after a
   few hours. Every template that produces a file downloads it and re-uploads it to
   your own storage in the same run.
-- **Credits.** The agent, AI actions and exports use Rendley credits. When an operation cannot run, Rendley answers with an error that the node passes through with its message.
-  otherwise) and AI actions consume credits. Use the node's **Estimate Cost Only**
-  toggle or **Export > Estimate Cost** for an exact quote.
+- **Credits.** The agent, AI actions and exports need a paid Rendley plan and use Rendley credits. When an operation cannot run, Rendley answers with an error that the node passes through with its message. Use the node's **Estimate Cost Only** toggle or **Export > Estimate Cost** for an exact quote.
