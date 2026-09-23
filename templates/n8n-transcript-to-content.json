@@ -98,7 +98,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are a content repurposing assistant. From the transcript below, produce a JSON object with exactly these keys: \"blog_post\" (an 600–900 word article in Markdown), \"show_notes\" (a short summary plus 5–8 timestamped bullet points), and \"social_copy\" (an object with \"linkedin\", \"x\", and \"instagram\" caption strings). Return ONLY the JSON, no prose.\n\nTranscript:\n{{ $json.result?.text || JSON.stringify($json.result) }}",
+        "text": "=You are a content repurposing assistant. From the transcript below, produce a JSON object with exactly these keys: \"blog_post\" (an 600–900 word article in Markdown), \"show_notes\" (a short summary plus 5–8 timestamped bullet points), and \"social_copy\" (an object with \"linkedin\", \"x\", and \"instagram\" caption strings). Return ONLY the JSON, no prose.\n\nTranscript:\n{{ $json.result_data?.text || JSON.stringify($json.result_data) }}",
         "messages": {},
         "batching": {}
       },

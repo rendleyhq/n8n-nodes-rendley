@@ -3,66 +3,66 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Catalogue Video at Scale\n\nRuns on a schedule. Reads product rows from a Google Sheet and, for each row, **POSTs `/v1/export` with an inline project JSON** (no saved project needed). It polls each export job, downloads the MP4, copies it to your storage, and writes the result back to the sheet.\n\n**Why raw HTTP for export?** Inline-project export isn't exposed on the community node's Export operation, so this template calls `POST https://api.rendley.com/v1/export` directly with a `Bearer` header. Build the `project` JSON from each row.",
-        "height": 300,
-        "width": 420,
+        "content": "## Catalogue Video at Scale\n\nRuns on a schedule. Reads product rows from a Google Sheet and, for each row, asks the **Rendley AI Video Agent** to build a short product clip from the row's photo, title, price and call to action. The flow polls the agent job, exports the MP4, copies it to your Google Drive and writes the link back to the sheet.\n\n**Set up:** add your Rendley credential, connect Google Sheets and Google Drive, set `YOUR_GOOGLE_SHEET_ID` and `YOUR_DRIVE_FOLDER_ID`.\n\n**Sheet layout:** a `Products` tab with the columns `title`, `price`, `media_url` (public image URL) and `cta`, plus an empty `Results` tab. Edit the prompt in **Start Agent** to change the style.",
+        "height": 340,
+        "width": 440,
         "color": 4
       },
-      "id": "17000000-0000-4000-8000-000000000001",
+      "id": "sticky-about",
       "name": "About",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         -260,
-        80
+        40
       ]
     },
     {
       "parameters": {
-        "content": "### Credits\nExport requires an **active Rendley subscription** and consumes **credits per render** — roughly **~10–30 credits** per short catalogue clip at 1080p. Multiply by your row count and check `POST /v1/export/cost` before a big batch.",
-        "height": 200,
-        "width": 320,
+        "content": "### Credits\nThe agent and the export need a **paid Rendley plan** (HTTP 402 otherwise) and consume **credits per row**: music, captions and the export together are roughly **~30-80 credits** per clip. Multiply by your row count and check your balance in app.rendley.com before a big batch.",
+        "height": 220,
+        "width": 340,
         "color": 3
       },
-      "id": "17000000-0000-4000-8000-000000000002",
+      "id": "sticky-plan-and-cost",
       "name": "Plan and cost",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        200,
-        80
+        220,
+        40
       ]
     },
     {
       "parameters": {
-        "content": "### Links expire — copy every file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. Each row's MP4 is downloaded and re-uploaded to your own Google Drive before the sheet is updated, so nothing is lost when the link expires.",
-        "height": 190,
-        "width": 360,
-        "color": 6
-      },
-      "id": "17000000-0000-4000-8000-000000000003",
-      "name": "Expiry",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -260,
-        900
-      ]
-    },
-    {
-      "parameters": {
-        "content": "### Why poll here?\nRendley has no outbound webhooks, so a workflow follows a job by polling. This batch flow polls with **Wait → Get Job → IF** instead so each sheet row stays a single linear branch inside the loop. Tune the Wait duration to your render length.",
-        "height": 180,
-        "width": 340,
+        "content": "### Why poll here?\nRendley has no outbound webhooks, so a workflow follows a job by polling. A batch keeps each row as one linear branch inside the loop: **Wait, then Agent > Get Job, then If**. n8n offloads waits of 65 s or more, so the 70 s Wait costs no execution time. A failed or cancelled job leaves the loop through **Job Failed?** and is logged to the sheet instead of polling forever.\n\nThe export itself is short, so **Export Video** waits inline.",
+        "height": 220,
+        "width": 420,
         "color": 5
       },
-      "id": "17000000-0000-4000-8000-000000000004",
+      "id": "sticky-why-poll",
       "name": "Why poll",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        560,
-        900
+        600,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Links expire, copy every file!\nRendley **export URLs expire after ~4 hours** and **presigned media URLs after ~3 hours**. Each row's MP4 is downloaded and re-uploaded to your own Google Drive before the sheet is updated, so nothing is lost when the link expires.",
+        "height": 200,
+        "width": 360,
+        "color": 6
+      },
+      "id": "sticky-expiry",
+      "name": "Expiry",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        40
       ]
     },
     {
@@ -76,7 +76,7 @@
           ]
         }
       },
-      "id": "17000000-0000-4000-8000-000000000010",
+      "id": "node-schedule",
       "name": "Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -99,7 +99,7 @@
         },
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-000000000011",
+      "id": "node-read-product-rows",
       "name": "Read Product Rows",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
@@ -118,7 +118,7 @@
       "parameters": {
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-000000000012",
+      "id": "node-loop-over-rows",
       "name": "Loop Over Rows",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
@@ -128,44 +128,46 @@
       ]
     },
     {
-      "parameters": {
-        "jsCode": "// Build one inline Rendley project per catalogue row.\n// Replace this skeleton with your real project JSON — see the Rendley\n// timeline schema. This example just carries the row's media + title.\nconst row = $input.item.json;\nconst project = {\n  name: row.title || 'Catalogue item',\n  // e.g. layers/clips built from row.media_url, row.title, row.price, row.cta ...\n  // media: [{ url: row.media_url }],\n};\nreturn {\n  json: {\n    title: row.title || 'item',\n    export_body: {\n      project,\n      settings: { codec: 'h264', target_resolution: '1080p', quality: 'high' },\n    },\n  },\n};"
-      },
-      "id": "17000000-0000-4000-8000-000000000013",
-      "name": "Build Export Body",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "parameters": {},
+      "id": "node-all-rows-done",
+      "name": "All Rows Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
-        240,
-        720
+        460,
+        360
       ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.rendley.com/v1/export",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "agent",
+        "operation": "run",
+        "prompt": "=Create a 10-second vertical (9:16) product video for \"{{ $json.title }}\".\n\n1. Use the attached product photo as the full-frame visual with a slow, smooth zoom in.\n2. Show the title \"{{ $json.title }}\" as a bold caption from the first second, and the price \"{{ $json.price }}\" right under it in a smaller size.\n3. In the last 3 seconds add the call to action \"{{ $json.cta }}\" as a large centered caption.\n4. Add upbeat background music, faded out at the end.\n\nKeep every element inside the 9:16 frame and report the final duration.",
+        "files": {
+          "file": [
             {
-              "name": "Authorization",
-              "value": "Bearer YOUR_RENDLEY_API_KEY"
+              "url": "={{ $json.media_url }}",
+              "name": "product-photo"
             }
           ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.export_body) }}",
-        "options": {}
+        "additionalOptions": {},
+        "waitForCompletion": false
       },
-      "id": "17000000-0000-4000-8000-000000000014",
-      "name": "POST /v1/export",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "node-start-agent",
+      "name": "Start Agent",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
       "position": [
         460,
-        720
-      ]
+        560
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
     },
     {
       "parameters": {
@@ -175,55 +177,61 @@
               "id": "j1",
               "name": "job_id",
               "type": "string",
-              "value": "={{ $json.data?.job_id || $json.job_id }}"
+              "value": "={{ $json.job_id }}"
             },
             {
               "id": "j2",
+              "name": "project_id",
+              "type": "string",
+              "value": "={{ $json.project_id }}"
+            },
+            {
+              "id": "j3",
               "name": "title",
               "type": "string",
-              "value": "={{ $('Build Export Body').item.json.title }}"
+              "value": "={{ $('Loop Over Rows').item.json.title }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-000000000015",
+      "id": "node-track-job",
       "name": "Track Job",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
         680,
-        720
+        560
       ]
     },
     {
       "parameters": {
-        "amount": 45,
+        "amount": 70,
         "unit": "seconds"
       },
-      "id": "17000000-0000-4000-8000-000000000016",
+      "id": "node-wait",
       "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
         900,
-        720
+        560
       ],
-      "webhookId": "catalogue-export-wait"
+      "webhookId": "catalogue-agent-wait"
     },
     {
       "parameters": {
-        "resource": "export",
+        "resource": "agent",
         "operation": "getJob",
-        "jobId": "={{ $('Track Job').item.json.job_id }}"
+        "agentJobId": "={{ $('Track Job').item.json.job_id }}"
       },
-      "id": "17000000-0000-4000-8000-000000000017",
-      "name": "Get Export Job",
+      "id": "node-agent-job-status",
+      "name": "Agent Job Status",
       "type": "n8n-nodes-rendley.rendley",
       "typeVersion": 1,
       "position": [
         1120,
-        720
+        560
       ],
       "credentials": {
         "rendleyApi": {
@@ -242,7 +250,7 @@
           },
           "conditions": [
             {
-              "id": "c1",
+              "id": "done1",
               "leftValue": "={{ $json.status }}",
               "rightValue": "completed",
               "operator": {
@@ -251,23 +259,114 @@
               }
             }
           ],
-          "combinator": "and"
+          "combinator": "or"
         },
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-000000000018",
-      "name": "Export Done?",
+      "id": "node-job-done-",
+      "name": "Job Done?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         1340,
-        720
+        560
       ]
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "fail1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "fail2",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "canceled",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "fail3",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "cancelled",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "fail4",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "waiting_input",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "node-job-failed-",
+      "name": "Job Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "export",
+        "operation": "render",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Track Job').item.json.project_id }}"
+        },
+        "settings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        },
+        "waitForCompletion": true,
+        "pollInterval": 15,
+        "pollTimeout": 30
+      },
+      "id": "node-export-video",
+      "name": "Export Video",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        460
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley API"
+        }
+      }
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "={{ $json.result?.storage_url || $json.video_url }}",
+        "url": "={{ $json.url }}",
         "options": {
           "response": {
             "response": {
@@ -276,13 +375,13 @@
           }
         }
       },
-      "id": "17000000-0000-4000-8000-000000000019",
+      "id": "node-download-mp4",
       "name": "Download MP4",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
-        640
+        1780,
+        460
       ]
     },
     {
@@ -301,13 +400,13 @@
         },
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-00000000001a",
+      "id": "node-save-to-google-drive",
       "name": "Save to Google Drive",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1780,
-        640
+        2000,
+        460
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -334,18 +433,19 @@
           "value": {
             "title": "={{ $('Track Job').item.json.title }}",
             "drive_link": "={{ $json.webViewLink }}",
-            "drive_file_id": "={{ $json.id }}"
+            "drive_file_id": "={{ $json.id }}",
+            "error": ""
           }
         },
         "options": {}
       },
-      "id": "17000000-0000-4000-8000-00000000001b",
+      "id": "node-write-result-to-sheet",
       "name": "Write Result to Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2000,
-        640
+        2220,
+        460
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -355,15 +455,43 @@
       }
     },
     {
-      "parameters": {},
-      "id": "17000000-0000-4000-8000-00000000001c",
-      "name": "All Rows Done",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Results"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $('Track Job').item.json.title }}",
+            "drive_link": "",
+            "drive_file_id": "",
+            "error": "={{ $json.error || $json.last_message || $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-write-failure-to-sheet",
+      "name": "Write Failure to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        460,
-        460
-      ]
+        1560,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
     }
   ],
   "connections": {
@@ -400,25 +528,14 @@
         ],
         [
           {
-            "node": "Build Export Body",
+            "node": "Start Agent",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Build Export Body": {
-      "main": [
-        [
-          {
-            "node": "POST /v1/export",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "POST /v1/export": {
+    "Start Agent": {
       "main": [
         [
           {
@@ -444,29 +561,47 @@
       "main": [
         [
           {
-            "node": "Get Export Job",
+            "node": "Agent Job Status",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Export Job": {
+    "Agent Job Status": {
       "main": [
         [
           {
-            "node": "Export Done?",
+            "node": "Job Done?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Export Done?": {
+    "Job Done?": {
       "main": [
         [
           {
-            "node": "Download MP4",
+            "node": "Export Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Job Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Failed?": {
+      "main": [
+        [
+          {
+            "node": "Write Failure to Sheet",
             "type": "main",
             "index": 0
           }
@@ -474,6 +609,17 @@
         [
           {
             "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export Video": {
+      "main": [
+        [
+          {
+            "node": "Download MP4",
             "type": "main",
             "index": 0
           }
@@ -503,6 +649,17 @@
       ]
     },
     "Write Result to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Failure to Sheet": {
       "main": [
         [
           {

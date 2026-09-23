@@ -139,7 +139,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $json.download_url }}",
+        "url": "={{ $json.url }}",
         "options": {
           "response": {
             "response": {
