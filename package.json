@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-rendley",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "Rendley node for n8n. Create, edit, and automate video with the Rendley AI agent, AI video, image, music and speech generation, transcription, dubbing, lip sync, media uploads, brand kits and MP4 rendering.",
 	"keywords": [
 		"n8n-community-node-package",
