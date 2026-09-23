@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.2.3
+## 1.0.0
 
-- The package now lives in its own repository, [rendleyhq/n8n-nodes-rendley](https://github.com/rendleyhq/n8n-nodes-rendley), and is published from there. The `credentials/` folder is at the repository root by itself, so the build no longer mirrors it. No functional changes.
+- First release from the package's own repository, [rendleyhq/n8n-nodes-rendley](https://github.com/rendleyhq/n8n-nodes-rendley), versioned 1.x like the other Rendley integrations. The `credentials/` folder is at the repository root by itself, so the build no longer mirrors it. No functional changes since 0.2.2.
 
 ## 0.2.2
 
