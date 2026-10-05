@@ -113,6 +113,7 @@ function makeCtx(port, params, items = [{ json: {} }], opts = {}) {
     getInputData: () => items,
     getNode: () => ({ name: 'Rendley', type: 'n8n-nodes-rendley.rendley' }),
     continueOnFail: () => !!opts.continueOnFail,
+    getTimezone: () => opts.timezone ?? 'UTC',
     getCredentials: async () => creds,
     getNodeParameter: (name, i, def, o) => {
       let v = name in params ? params[name] : def;
@@ -296,6 +297,9 @@ const since = (n) => log.slice(n);
   assert.deepStrictEqual(posted, { workspace_id: 'ws1', account_ids: ['acc1', 'acc2'], media_url: 'https://cdn/v.mp4', caption: 'Hi', scheduled_at: '2030-01-02T03:04:05.000Z', project_id: 'p1' });
   assert.deepStrictEqual(out[0].map((item) => item.json.status), ['scheduled', 'scheduled']);
   await assert.rejects(run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: [], mediaUrl: 'https://cdn/v.mp4', caption: '' }), /at least one account/);
+  await run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: ['acc1'], mediaUrl: 'https://cdn/v.mp4', caption: '', postOptions: { scheduledAt: '2030-07-01T09:00:00' } }, undefined, { timezone: 'Europe/Berlin' });
+  assert.strictEqual(last((e) => e.path === '/api/v1/social/posts' && e.method === 'POST').body.scheduled_at, '2030-07-01T07:00:00.000Z');
+  await assert.rejects(run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: ['acc1'], mediaUrl: 'https://cdn/v.mp4', caption: '', postOptions: { scheduledAt: 'tomorrow' } }), /not a valid date/);
   out = await run({ resource: 'social', operation: 'getAccounts', socialWorkspaceId: 'ws1' });
   assert.strictEqual(out[0].length, 2);
   out = await run({ resource: 'social', operation: 'getPosts', socialWorkspaceId: 'ws1' });

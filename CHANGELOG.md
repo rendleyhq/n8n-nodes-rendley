@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- New Social Media resource: Create Post (now or scheduled), Get Accounts, Get Posts and Cancel Post, through the accounts connected in Rendley. The account picker loads per workspace. Schedule For is read in the workflow's timezone.
+- New template: faceless short videos from a Google Sheet, posted through Rendley.
+
 ## 1.0.0
 
 - First release from the package's own repository, [rendleyhq/n8n-nodes-rendley](https://github.com/rendleyhq/n8n-nodes-rendley), versioned 1.x like the other Rendley integrations. The `credentials/` folder is at the repository root by itself, so the build no longer mirrors it. No functional changes since 0.2.2.

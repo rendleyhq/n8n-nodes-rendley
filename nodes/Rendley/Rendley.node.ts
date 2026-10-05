@@ -288,6 +288,31 @@ function jobFailureMessage(job: IDataObject, fallback: string): string {
 }
 
 /** Last path segment of a URL, used when no file name was given. */
+/** A time without an offset is read in the workflow's timezone, like n8n's own date fields. */
+function scheduledTimeToUtc(value: string, timeZone: string): Date {
+	const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+	const parsed = new Date(hasOffset ? value : `${value.trim()}Z`);
+	if (hasOffset || Number.isNaN(parsed.getTime())) {
+		return parsed;
+	}
+	const parts = Object.fromEntries(
+		new Intl.DateTimeFormat('en-US', {
+			timeZone,
+			hourCycle: 'h23',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		})
+			.formatToParts(parsed)
+			.map((part) => [part.type, part.value]),
+	);
+	const wallTimeAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+	return new Date(parsed.getTime() - (wallTimeAsUtc - parsed.getTime()));
+}
+
 function fileNameFromUrl(url: string): string {
 	const path = url.split('?')[0] ?? '';
 	const last = path.split('/').filter(Boolean).pop();
@@ -2043,7 +2068,7 @@ export class Rendley implements INodeType {
 						name: 'scheduledAt',
 						type: 'dateTime',
 						default: '',
-						description: 'When to publish. Leave empty to publish now.',
+						description: "When to publish, in the workflow's timezone. Leave empty to publish now.",
 					},
 					{
 						displayName: 'Project ID',
@@ -2861,7 +2886,15 @@ export class Rendley implements INodeType {
 						caption: this.getNodeParameter('caption', i, '') as string,
 					};
 					if (options.scheduledAt) {
-						body.scheduled_at = new Date(options.scheduledAt as string).toISOString();
+						const scheduledAt = scheduledTimeToUtc(String(options.scheduledAt), this.getTimezone());
+						if (Number.isNaN(scheduledAt.getTime())) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`Schedule For is not a valid date: "${options.scheduledAt}". Use a date such as 2026-10-05T09:00.`,
+								{ itemIndex: i },
+							);
+						}
+						body.scheduled_at = scheduledAt.toISOString();
 					}
 					if (options.projectId) {
 						body.project_id = options.projectId;

@@ -94,6 +94,7 @@ Completion** is on (the default), polls until it finishes. **Poll Interval (Seco
 | **Media** | Upload, Get Download URL, List |
 | **Brand Kit** | Get, Import From Website |
 | **Project** | Create, Get, List, Delete |
+| **Social Media** | Create Post, Get Accounts, Get Posts, Cancel Post |
 
 ### Video, Image and Audio
 
@@ -135,6 +136,18 @@ workflow rather than saving a Rendley URL for later.
 Read a workspace brand kit or import one from a public website. Create, get (with a
 **Simplify** toggle that leaves out the editor document), list and delete projects.
 Leaving the workspace empty uses the account's first workspace.
+
+### Social Media
+
+Post a video or image to the social accounts connected in Rendley (Social media in
+the app), now or at a scheduled time in the workflow's timezone. **Media URL** can be
+any public https link to an mp4/mov video or a jpeg/png/webp/gif image, such as the
+`url` from Export Video. Rendley creates one post per account and returns them all;
+if some accounts fail after others went out, those come back with `status: failed`
+and an `error`, so retrying never posts twice. Captions are checked against each
+platform's limit (280 characters on X). Cancel Post works while a post is still
+scheduled. Posts also show in the Rendley content calendar. Requires a plan with
+social publishing.
 
 ## Following long jobs
 
