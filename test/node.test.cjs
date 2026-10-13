@@ -61,6 +61,10 @@ const server = http.createServer((req, res) => {
     if (p === '/api/v1/projects/p1/uploads/up1/complete') return ok(res, { media_id: 'x' });
     if (p === '/s3/put') { entry.putBytes = bodyBuf.length; res.writeHead(200); return res.end(); }
     if (p === '/file/sample.png') { res.writeHead(200, { 'content-type': 'image/png' }); return res.end(Buffer.from('abc')); }
+    if (p === '/api/v1/social/accounts') return ok(res, [{ id: 'acc1', platform: 'x', username: 'zed' }, { id: 'acc2', platform: 'tiktok', username: 'amy' }]);
+    if (p === '/api/v1/social/posts' && req.method === 'GET') return ok(res, [{ id: 'sp1', status: 'scheduled', platform: 'x' }]);
+    if (p === '/api/v1/social/posts' && req.method === 'POST') return ok(res, body.account_ids.map((id) => ({ id: `sp-${id}`, status: body.scheduled_at ? 'scheduled' : 'processing' })));
+    if (p === '/api/v1/social/posts/sp1' && req.method === 'DELETE') return ok(res, null);
     if (p === '/api/v1/brandkit/ws1') return ok(res, { id: 'bk', workspace_id: 'ws1', website_url: null });
     if (p === '/api/v1/brandkit/ws1/import') return ok(res, { id: 'bk', workspace_id: 'ws1', website_url: body.website_url });
     // ---------- Agent host (mcp) ----------
@@ -109,6 +113,7 @@ function makeCtx(port, params, items = [{ json: {} }], opts = {}) {
     getInputData: () => items,
     getNode: () => ({ name: 'Rendley', type: 'n8n-nodes-rendley.rendley' }),
     continueOnFail: () => !!opts.continueOnFail,
+    getTimezone: () => opts.timezone ?? 'UTC',
     getCredentials: async () => creds,
     getNodeParameter: (name, i, def, o) => {
       let v = name in params ? params[name] : def;
@@ -286,6 +291,24 @@ const since = (n) => log.slice(n);
   assert.deepStrictEqual(last((e) => e.path === '/api/v1/brandkit/ws1/import').body, { website_url: 'https://rendley.com' });
   console.log('OK brandKit:importFromWebsite');
 
+  // 18b. social media
+  out = await run({ resource: 'social', operation: 'createPost', socialWorkspaceId: '', accountIds: 'acc1, acc2', mediaUrl: ' https://cdn/v.mp4 ', caption: 'Hi', postOptions: { scheduledAt: '2030-01-02T03:04:05Z', projectId: 'p1' } });
+  const posted = last((e) => e.path === '/api/v1/social/posts' && e.method === 'POST').body;
+  assert.deepStrictEqual(posted, { workspace_id: 'ws1', account_ids: ['acc1', 'acc2'], media_url: 'https://cdn/v.mp4', caption: 'Hi', scheduled_at: '2030-01-02T03:04:05.000Z', project_id: 'p1' });
+  assert.deepStrictEqual(out[0].map((item) => item.json.status), ['scheduled', 'scheduled']);
+  await assert.rejects(run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: [], mediaUrl: 'https://cdn/v.mp4', caption: '' }), /at least one account/);
+  await run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: ['acc1'], mediaUrl: 'https://cdn/v.mp4', caption: '', postOptions: { scheduledAt: '2030-07-01T09:00:00' } }, undefined, { timezone: 'Europe/Berlin' });
+  assert.strictEqual(last((e) => e.path === '/api/v1/social/posts' && e.method === 'POST').body.scheduled_at, '2030-07-01T07:00:00.000Z');
+  await assert.rejects(run({ resource: 'social', operation: 'createPost', socialWorkspaceId: 'ws1', accountIds: ['acc1'], mediaUrl: 'https://cdn/v.mp4', caption: '', postOptions: { scheduledAt: 'tomorrow' } }), /not a valid date/);
+  out = await run({ resource: 'social', operation: 'getAccounts', socialWorkspaceId: 'ws1' });
+  assert.strictEqual(out[0].length, 2);
+  out = await run({ resource: 'social', operation: 'getPosts', socialWorkspaceId: 'ws1' });
+  assert.strictEqual(out[0][0].json.id, 'sp1');
+  out = await run({ resource: 'social', operation: 'cancelPost', postId: 'sp1' });
+  assert.deepStrictEqual(out[0][0].json, { post_id: 'sp1', canceled: true });
+  assert.ok(last((e) => e.method === 'DELETE' && e.path === '/api/v1/social/posts/sp1'));
+  console.log('OK social:createPost/getAccounts/getPosts/cancelPost');
+
   // 19. continueOnFail
   out = await run({ resource: 'media', operation: 'getDownloadUrl', projectId: { mode: 'id', value: 'p1' }, mediaId: '', fileHash: '' }, [{ json: {} }], { continueOnFail: true });
   assert.match(out[0][0].json.error, /Media ID or a File Hash/);
@@ -300,6 +323,8 @@ const since = (n) => log.slice(n);
   assert.strictEqual(last((e) => e.path.startsWith('/api/v1/ai/text-to-speech/voices')).path, '/api/v1/ai/text-to-speech/voices?limit=100');
   opts = await node.methods.loadOptions.getTranslateLanguages.call(lo);
   assert.deepStrictEqual(opts.map((o) => o.value), ['de', 'es']);
+  opts = await node.methods.loadOptions.getSocialAccounts.call(lo);
+  assert.deepStrictEqual(opts.map((o) => o.name), ['tiktok: amy', 'x: zed']);
   opts = await node.methods.loadOptions.getWorkspacesOrDefault.call(lo);
   assert.deepStrictEqual(opts.map((o) => o.value), ['', 'ws1']);
   const search = await node.methods.listSearch.searchProjects.call(lo, 'alp');

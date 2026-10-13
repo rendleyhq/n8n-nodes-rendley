@@ -288,6 +288,31 @@ function jobFailureMessage(job: IDataObject, fallback: string): string {
 }
 
 /** Last path segment of a URL, used when no file name was given. */
+/** A time without an offset is read in the workflow's timezone, like n8n's own date fields. */
+function scheduledTimeToUtc(value: string, timeZone: string): Date {
+	const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+	const parsed = new Date(hasOffset ? value : `${value.trim()}Z`);
+	if (hasOffset || Number.isNaN(parsed.getTime())) {
+		return parsed;
+	}
+	const parts = Object.fromEntries(
+		new Intl.DateTimeFormat('en-US', {
+			timeZone,
+			hourCycle: 'h23',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		})
+			.formatToParts(parsed)
+			.map((part) => [part.type, part.value]),
+	);
+	const wallTimeAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+	return new Date(parsed.getTime() - (wallTimeAsUtc - parsed.getTime()));
+}
+
 function fileNameFromUrl(url: string): string {
 	const path = url.split('?')[0] ?? '';
 	const last = path.split('/').filter(Boolean).pop();
@@ -937,6 +962,7 @@ export class Rendley implements INodeType {
 					{ name: 'Image', value: 'image' },
 					{ name: 'Media', value: 'media' },
 					{ name: 'Project', value: 'project' },
+					{ name: 'Social Media', value: 'social' },
 					{ name: 'Video', value: 'video' },
 				],
 				default: 'agent',
@@ -1223,6 +1249,42 @@ export class Rendley implements INodeType {
 					},
 				],
 				default: 'get',
+			},
+
+			// ----- Social Media operations -----
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['social'] } },
+				options: [
+					{
+						name: 'Cancel Post',
+						value: 'cancelPost',
+						action: 'Cancel a scheduled post',
+						description: 'Cancel a post that has not been published yet',
+					},
+					{
+						name: 'List Accounts',
+						value: 'getAccounts',
+						action: 'List connected social accounts',
+						description: 'Social accounts connected to the workspace in the Rendley app',
+					},
+					{
+						name: 'List Posts',
+						value: 'getPosts',
+						action: 'List social posts',
+						description: 'Scheduled, published and failed posts of the workspace',
+					},
+					{
+						name: 'Publish Post',
+						value: 'createPost',
+						action: 'Publish or schedule a post',
+						description: 'Post a video or image to connected accounts now or at a set time',
+					},
+				],
+				default: 'createPost',
 			},
 
 			// ----- Project operations -----
@@ -1946,6 +2008,87 @@ export class Rendley implements INodeType {
 				description: 'Public website to extract colors, fonts, and logos from',
 			},
 
+			// ===== Social Media =====
+			{
+				displayName: 'Workspace Name or ID',
+				name: 'socialWorkspaceId',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getWorkspacesOrDefault' },
+				default: '',
+				displayOptions: {
+					show: { resource: ['social'], operation: ['createPost', 'getAccounts', 'getPosts'] },
+				},
+				description:
+					'Workspace whose connected accounts to use. Leave on Default Workspace to use the first one. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Account Names or IDs',
+				name: 'accountIds',
+				type: 'multiOptions',
+				typeOptions: {
+					loadOptionsMethod: 'getSocialAccounts',
+					loadOptionsDependsOn: ['socialWorkspaceId'],
+				},
+				required: true,
+				default: [],
+				displayOptions: { show: { resource: ['social'], operation: ['createPost'] } },
+				description:
+					'Accounts to post to, connected in the Rendley app under Social media. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Media URL',
+				name: 'mediaUrl',
+				type: 'string',
+				required: true,
+				default: '',
+				placeholder: 'https://...',
+				displayOptions: { show: { resource: ['social'], operation: ['createPost'] } },
+				description:
+					'Public HTTPS link to the video or image, for example the URL from Export. Rendley copies the file, so the link may expire before a scheduled post goes out.',
+			},
+			{
+				displayName: 'Caption',
+				name: 'caption',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+				displayOptions: { show: { resource: ['social'], operation: ['createPost'] } },
+				description: 'Text of the post',
+			},
+			{
+				displayName: 'Options',
+				name: 'postOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: { show: { resource: ['social'], operation: ['createPost'] } },
+				options: [
+					{
+						displayName: 'Schedule For',
+						name: 'scheduledAt',
+						type: 'dateTime',
+						default: '',
+						description: "When to publish, in the workflow's timezone. Leave empty to publish now.",
+					},
+					{
+						displayName: 'Project ID',
+						name: 'projectId',
+						type: 'string',
+						default: '',
+						description: 'Rendley project the media comes from, shown with the post in the content calendar',
+					},
+				],
+			},
+			{
+				displayName: 'Post ID',
+				name: 'postId',
+				type: 'string',
+				required: true,
+				default: '',
+				displayOptions: { show: { resource: ['social'], operation: ['cancelPost'] } },
+				description: 'ID of the scheduled post, from Publish Post or List Posts',
+			},
+
 			// ===== Project > Create =====
 			{
 				displayName: 'Name',
@@ -2128,6 +2271,28 @@ export class Rendley implements INodeType {
 						description: model.description as string | undefined,
 					})),
 				];
+			},
+
+			/** Social accounts connected to the selected workspace. */
+			async getSocialAccounts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const workspaceId = await resolveWorkspaceId(
+					this,
+					(this.getCurrentNodeParameter('socialWorkspaceId') as string) || '',
+				);
+				const accounts = await rendleyRequest<IDataObject[] | undefined>(
+					this,
+					'GET',
+					`/social/accounts?workspace_id=${encodeURIComponent(workspaceId)}`,
+				);
+				if (!Array.isArray(accounts)) {
+					return [];
+				}
+				return accounts
+					.map((account) => ({
+						name: `${account.platform as string}: ${account.username as string}`,
+						value: account.id as string,
+					}))
+					.sort((a, b) => a.name.localeCompare(b.name));
 			},
 
 			/** Workspaces, for operations that require one. */
@@ -2681,6 +2846,72 @@ export class Rendley implements INodeType {
 						`/brandkit/${encodeURIComponent(workspaceId)}/import`,
 						{ website_url: websiteUrl },
 					)) as IDataObject;
+				} else if (resource === 'social' && (operation === 'getAccounts' || operation === 'getPosts')) {
+					// -------------------------------------------------------------
+					// Social Media > List Accounts / List Posts
+					// -------------------------------------------------------------
+					const workspaceId = await resolveWorkspaceId(
+						this,
+						this.getNodeParameter('socialWorkspaceId', i, '') as string,
+					);
+					const path = operation === 'getAccounts' ? 'accounts' : 'posts';
+					responseData = (await rendleyRequest<IDataObject[] | undefined>(
+						this,
+						'GET',
+						`/social/${path}?workspace_id=${encodeURIComponent(workspaceId)}`,
+					)) ?? [];
+				} else if (resource === 'social' && operation === 'createPost') {
+					// -------------------------------------------------------------
+					// Social Media > Publish Post
+					// -------------------------------------------------------------
+					const workspaceId = await resolveWorkspaceId(
+						this,
+						this.getNodeParameter('socialWorkspaceId', i, '') as string,
+					);
+					const accountParam = this.getNodeParameter('accountIds', i, []) as string[] | string;
+					// an expression can hand over a comma-separated string
+					const accountIds = (Array.isArray(accountParam) ? accountParam : accountParam.split(','))
+						.map((id) => id.trim())
+						.filter(Boolean);
+					if (accountIds.length === 0) {
+						throw new NodeOperationError(this.getNode(), 'Choose at least one account to post to.', {
+							itemIndex: i,
+						});
+					}
+					const options = this.getNodeParameter('postOptions', i, {}) as IDataObject;
+					const body: IDataObject = {
+						workspace_id: workspaceId,
+						account_ids: accountIds,
+						media_url: (this.getNodeParameter('mediaUrl', i) as string).trim(),
+						caption: this.getNodeParameter('caption', i, '') as string,
+					};
+					if (options.scheduledAt) {
+						const scheduledAt = scheduledTimeToUtc(String(options.scheduledAt), this.getTimezone());
+						if (Number.isNaN(scheduledAt.getTime())) {
+							throw new NodeOperationError(
+								this.getNode(),
+								`Schedule For is not a valid date: "${options.scheduledAt}". Use a date such as 2026-10-05T09:00.`,
+								{ itemIndex: i },
+							);
+						}
+						body.scheduled_at = scheduledAt.toISOString();
+					}
+					if (options.projectId) {
+						body.project_id = options.projectId;
+					}
+					responseData = (await rendleyRequest<IDataObject[] | undefined>(
+						this,
+						'POST',
+						'/social/posts',
+						body,
+					)) ?? [];
+				} else if (resource === 'social' && operation === 'cancelPost') {
+					// -------------------------------------------------------------
+					// Social Media > Cancel Post
+					// -------------------------------------------------------------
+					const postId = (this.getNodeParameter('postId', i) as string).trim();
+					await rendleyRequest(this, 'DELETE', `/social/posts/${encodeURIComponent(postId)}`);
+					responseData = { post_id: postId, canceled: true };
 				} else if (resource === 'project' && operation === 'create') {
 					// -------------------------------------------------------------
 					// Project > Create
