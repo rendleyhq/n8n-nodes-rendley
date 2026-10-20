@@ -4,6 +4,7 @@
 
 - New Social Media resource: Create Post (now or scheduled), Get Accounts, Get Posts and Cancel Post, through the accounts connected in Rendley. The account picker loads per workspace. Schedule For is read in the workflow's timezone.
 - New template: faceless short videos from a Google Sheet, posted through Rendley.
+- New template: long video into captioned vertical clips, posted on a schedule through Rendley.
 
 ## 1.0.0
 
