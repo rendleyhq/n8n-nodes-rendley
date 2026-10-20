@@ -18,6 +18,7 @@ own values.
 | [`n8n-product-photo-to-video-ad.json`](n8n-product-photo-to-video-ad.json) | Webhook (image URL) | Animate a product photo into a short video ad and copy it to Drive | Project, Video (Generate) |
 | [`n8n-catalogue-video-at-scale.json`](n8n-catalogue-video-at-scale.json) | Schedule | Sheet rows to agent-made product clips, polled with a Wait loop, exported, copied to Drive, written back | Agent (Run, Get Job), Export |
 | [`n8n-faceless-shorts-from-sheet.json`](n8n-faceless-shorts-from-sheet.json) | Schedule | Next topic from Google Sheets, OpenAI script, Rendley agent makes the whole video, optional review in the Rendley editor, export, Rendley posts to the connected social accounts (now or scheduled), status back to the sheet | Agent (Run, Get Job, Cancel Job), Export, Social Media (Create Post) |
+| [`n8n-long-video-to-clips-autopost.json`](n8n-long-video-to-clips-autopost.json) | Form (file or link) | Transcribe, OpenAI picks the best moments with captions, one Rendley agent run per moment cuts a 9:16 clip with word-by-word captions, export, Rendley posts each clip on a schedule, failed clips are reported without stopping the others | Project, Media (Upload, Get Download URL), Video (Transcribe), Agent (Run, Get Job, Cancel Job), Export, Social Media (Create Post) |
 | [`n8n-brandkit-from-website.json`](n8n-brandkit-from-website.json) | Webhook (site URL) | Import a brand kit from a public website and read it back | Brand Kit |
 
 ## Patterns

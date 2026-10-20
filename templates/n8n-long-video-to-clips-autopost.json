@@ -1,0 +1,1268 @@
+{
+  "name": "Turn long videos into captioned vertical clips with OpenAI and Rendley, then auto-post to social media",
+  "nodes": [
+    {
+      "id": "lv-1",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "long-video-to-clips",
+      "parameters": {
+        "formTitle": "Turn a long video into clips",
+        "formDescription": "Upload a video with speech or paste a public link to it. Your clips show up in the Rendley content calendar in about 10 minutes and post on the schedule set in the workflow.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Video file",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".mp4, .mov, .webm, .m4v"
+            },
+            {
+              "fieldLabel": "Video link",
+              "placeholder": "https://... (used when no file is uploaded)"
+            },
+            {
+              "fieldLabel": "Number of clips",
+              "fieldType": "number",
+              "placeholder": "3"
+            },
+            {
+              "fieldLabel": "What is the video about?",
+              "fieldType": "textarea",
+              "placeholder": "Optional: the topic and who it is for, so the captions hit the right tone"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-2",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "Settings-0",
+              "name": "clipCount",
+              "value": "={{ Math.min(Math.max(Number($('On form submission').item.json['Number of clips']) || 3, 1), 10) }}",
+              "type": "number"
+            },
+            {
+              "id": "Settings-1",
+              "name": "minSeconds",
+              "value": 20,
+              "type": "number"
+            },
+            {
+              "id": "Settings-2",
+              "name": "maxSeconds",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "Settings-3",
+              "name": "aspectRatio",
+              "value": "9:16",
+              "type": "string"
+            },
+            {
+              "id": "Settings-4",
+              "name": "language",
+              "value": "the language of the video",
+              "type": "string"
+            },
+            {
+              "id": "Settings-5",
+              "name": "captionStyle",
+              "value": "bold, high-contrast, one short line at a time",
+              "type": "string"
+            },
+            {
+              "id": "Settings-6",
+              "name": "firstPostInMinutes",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "Settings-7",
+              "name": "hoursBetweenPosts",
+              "value": 24,
+              "type": "number"
+            },
+            {
+              "id": "Settings-8",
+              "name": "postPartialClips",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "Settings-9",
+              "name": "maxWaitRounds",
+              "value": 20,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-3",
+      "name": "Create source project",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "resource": "project",
+        "operation": "create",
+        "name": "={{ 'Clips: ' + (Object.values($('On form submission').item.binary || {})[0]?.fileName || $('On form submission').item.json['Video link'] || 'long video') }}"
+      }
+    },
+    {
+      "id": "lv-4",
+      "name": "Bring the file along",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-5",
+      "name": "File uploaded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "File uploaded?-1",
+              "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-6",
+      "name": "Upload the file",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        160
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "parameters": {
+        "resource": "media",
+        "operation": "upload",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Create source project').item.json.id }}"
+        },
+        "uploadSource": "binary",
+        "binaryPropertyName": "={{ Object.keys($binary)[0] }}"
+      }
+    },
+    {
+      "id": "lv-7",
+      "name": "Get the file link",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        160
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "resource": "media",
+        "operation": "getDownloadUrl",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Create source project').item.json.id }}"
+        },
+        "mediaId": "={{ $json.media_id }}"
+      }
+    },
+    {
+      "id": "lv-8",
+      "name": "Import the link",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        440
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "resource": "media",
+        "operation": "upload",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Create source project').item.json.id }}"
+        },
+        "uploadSource": "url",
+        "uploadUrl": "={{ String($('On form submission').item.json['Video link'] || '').trim() }}"
+      }
+    },
+    {
+      "id": "lv-9",
+      "name": "Source video",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "Source video-0",
+              "name": "project_id",
+              "value": "={{ $('Create source project').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "Source video-1",
+              "name": "media_id",
+              "value": "={{ $json.media_id }}",
+              "type": "string"
+            },
+            {
+              "id": "Source video-2",
+              "name": "url",
+              "value": "={{ $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "Source video-3",
+              "name": "fileName",
+              "value": "={{ $json.file_name || $json.original_file_name || 'source.mp4' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-10",
+      "name": "Transcribe with Rendley",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        300
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "resource": "video",
+        "operation": "transcribe",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.project_id }}"
+        },
+        "mediaFile": "={{ $json.media_id }}"
+      }
+    },
+    {
+      "id": "lv-11",
+      "name": "Format transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Word timings become short timed lines the model can quote back.\nconst words = ($json.result_data?.words || []).filter((word) => word.type === 'word');\nif (!words.length) {\n  throw new Error('Rendley found no speech in this video, so there is nothing to clip.');\n}\nconst lines = [];\nlet current = [];\nlet start = null;\nfor (const word of words) {\n  if (start === null) start = word.start;\n  current.push(word.text);\n  if (/[.?!]$/.test(word.text) && current.length >= 6) {\n    lines.push(`[${start.toFixed(1)}-${word.end.toFixed(1)}] ${current.join(' ')}`);\n    current = [];\n    start = null;\n  }\n}\nif (current.length) {\n  lines.push(`[${start.toFixed(1)}-${words[words.length - 1].end.toFixed(1)}] ${current.join(' ')}`);\n}\nreturn [{ json: { transcript: lines.join('\\n'), duration: words[words.length - 1].end } }];"
+      }
+    },
+    {
+      "id": "lv-12",
+      "name": "Pick the best moments",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2400,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a short-form video editor. Below is the transcript of a long video, one line per sentence with its start and end time in seconds.\n\nWhat the video is about: {{ $('On form submission').item.json['What is the video about?'] || 'not given, infer it from the transcript' }}\n\nPick the {{ $('Settings').item.json.clipCount }} best moments for vertical short videos. Each moment must:\n- be between {{ $('Settings').item.json.minSeconds }} and {{ $('Settings').item.json.maxSeconds }} seconds long,\n- start at the start of a line and end at the end of a line, using those exact times,\n- open with a line that grabs attention on its own, make one complete point and end on a natural stop,\n- not overlap with another moment.\nRank them best first. For each, write a title under 70 characters, a 1 to 2 sentence caption in {{ $('Settings').item.json.language }} that makes people want to watch, and 3 to 5 hashtags without the # sign. Keep caption and hashtags together under 240 characters.\n\nTranscript:\n{{ $json.transcript }}",
+        "hasOutputParser": true
+      }
+    },
+    {
+      "id": "lv-13",
+      "name": "Moment picker model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2340,
+        520
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      },
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      }
+    },
+    {
+      "id": "lv-14",
+      "name": "Moments format",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2520,
+        520
+      ],
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"clips\": [\n    {\n      \"start\": 41.8,\n      \"end\": 86.6,\n      \"title\": \"Why you should drop the small fish\",\n      \"caption\": \"New tools only help if you let go of the old ones.\",\n      \"hashtags\": [\n        \"productivity\",\n        \"technology\",\n        \"mindset\"\n      ]\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "lv-15",
+      "name": "One item per clip",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const s = $('Settings').item.json;\nconst source = $('Source video').item.json;\nconst duration = $('Format transcript').item.json.duration;\nconst clips = ($json.output?.clips || [])\n  .map((c) => ({ ...c, start: Math.max(0, Number(c.start)), end: Math.min(duration, Number(c.end)) }))\n  .filter((c) => c.end - c.start >= 5)\n  .slice(0, s.clipCount);\nif (!clips.length) {\n  throw new Error('The model did not return any usable clip. Try again or give the form a short description of the video.');\n}\n\nreturn clips.map((c, index) => {\n  const minutes = s.firstPostInMinutes + index * s.hoursBetweenPosts * 60;\n  const hashtags = (c.hashtags || []).map((tag) => '#' + String(tag).replace(/^#/, '')).join(' ');\n  const prompt = `Make a vertical ${s.aspectRatio} short clip from the attached video \"${source.fileName}\".\n- Keep only the part of the source from ${c.start.toFixed(1)} to ${c.end.toFixed(1)} seconds. Remove everything before and after it, so the clip starts at 0.\n- Reframe the video to ${s.aspectRatio} with reframeClip so the speaker stays in frame.\n- Inside that part, remove filler words (um, uh), false starts and pauses longer than half a second.\n- Add ${s.captionStyle} captions synced word by word, in the lower third inside the safe area.\n- Keep the original audio. Do not add music, voiceover, stock footage, logos or any other media.\nWorking title: ${c.title}`;\n  return {\n    json: {\n      clip: index + 1,\n      start: c.start,\n      end: c.end,\n      title: c.title,\n      caption: [c.caption, hashtags].filter(Boolean).join('\\n\\n'),\n      scheduledAt: minutes > 0 ? $now.plus({ minutes }).toISO() : '',\n      prompt,\n      sourceUrl: source.url,\n      fileName: source.fileName,\n    },\n  };\n});"
+      }
+    },
+    {
+      "id": "lv-16",
+      "name": "Cut the clip with Rendley AI agent",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        300
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "parameters": {
+        "resource": "agent",
+        "operation": "run",
+        "prompt": "={{ $json.prompt }}",
+        "files": {
+          "file": [
+            {
+              "url": "={{ $json.sourceUrl }}",
+              "name": "={{ $json.fileName }}"
+            }
+          ]
+        },
+        "waitForCompletion": false
+      }
+    },
+    {
+      "id": "lv-17",
+      "name": "Wait for the agent",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3240,
+        300
+      ],
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "lv-18",
+      "name": "Check agent job",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        3480,
+        300
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "resource": "agent",
+        "operation": "getJob",
+        "agentJobId": "={{ $('Cut the clip with Rendley AI agent').item.json.job_id }}"
+      }
+    },
+    {
+      "id": "lv-19",
+      "name": "Clip ready?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3720,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "Done",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "completed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Done"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "Failed",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "^(failed|canceled|cancelled|waiting_input)$",
+                    "operator": {
+                      "type": "string",
+                      "operation": "regex"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Failed"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Still working"
+        }
+      }
+    },
+    {
+      "id": "lv-20",
+      "name": "Clean result?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Clean result?-1",
+              "leftValue": "={{ $json.outcome === 'applied' || $('Settings').item.json.postPartialClips }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-21",
+      "name": "Export the clip",
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        4200,
+        160
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "parameters": {
+        "resource": "export",
+        "operation": "render",
+        "projectId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.project_id }}"
+        },
+        "settings": {
+          "target_resolution": "1080p",
+          "quality": "high"
+        },
+        "waitForCompletion": true,
+        "pollInterval": 15,
+        "pollTimeout": 30
+      }
+    },
+    {
+      "id": "lv-22",
+      "name": "Post the clip",
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        4440,
+        160
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "parameters": {
+        "resource": "social",
+        "operation": "createPost",
+        "accountIds": [],
+        "mediaUrl": "={{ $json.url }}",
+        "caption": "={{ $('One item per clip').item.json.caption }}",
+        "postOptions": {
+          "scheduledAt": "={{ $('One item per clip').item.json.scheduledAt }}",
+          "projectId": "={{ $('Check agent job').item.json.project_id }}"
+        }
+      }
+    },
+    {
+      "id": "lv-23",
+      "name": "Clip posted",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4680,
+        160
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "Clip posted-0",
+              "name": "clip",
+              "value": "={{ $('One item per clip').item.json.clip }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip posted-1",
+              "name": "title",
+              "value": "={{ $('One item per clip').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip posted-2",
+              "name": "status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip posted-3",
+              "name": "scheduled_at",
+              "value": "={{ $json.scheduled_at || 'now' }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip posted-4",
+              "name": "project_url",
+              "value": "={{ 'https://app.rendley.com/editor/' + $('Check agent job').item.json.project_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-24",
+      "name": "Needs a look",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4200,
+        460
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "Needs a look-0",
+              "name": "clip",
+              "value": "={{ $('One item per clip').item.json.clip }}",
+              "type": "string"
+            },
+            {
+              "id": "Needs a look-1",
+              "name": "title",
+              "value": "={{ $('One item per clip').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "Needs a look-2",
+              "name": "reason",
+              "value": "={{ 'The agent finished with warnings: ' + ($json.command_error || $json.last_message || '').replace(/https?:\\/\\/\\S+/g, '(file)').slice(0, 300) }}",
+              "type": "string"
+            },
+            {
+              "id": "Needs a look-3",
+              "name": "project_url",
+              "value": "={{ 'https://app.rendley.com/editor/' + $json.project_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-25",
+      "name": "Keep waiting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3720,
+        820
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Keep waiting?-1",
+              "leftValue": "={{ $runIndex < $('Settings').item.json.maxWaitRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-26",
+      "name": "Cancel agent job",
+      "type": "n8n-nodes-rendley.rendley",
+      "typeVersion": 1,
+      "position": [
+        3960,
+        820
+      ],
+      "credentials": {
+        "rendleyApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Rendley account"
+        }
+      },
+      "parameters": {
+        "resource": "agent",
+        "operation": "cancelJob",
+        "agentJobId": "={{ $('Cut the clip with Rendley AI agent').item.json.job_id }}"
+      }
+    },
+    {
+      "id": "lv-27",
+      "name": "Clip failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4440,
+        820
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "Clip failed-0",
+              "name": "clip",
+              "value": "={{ $('One item per clip').item.json.clip }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip failed-1",
+              "name": "title",
+              "value": "={{ $('One item per clip').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "Clip failed-2",
+              "name": "reason",
+              "value": "={{ $prevNode.name === 'Cancel agent job' ? 'The agent did not finish within ' + $('Settings').item.json.maxWaitRounds + ' checks, so the job was canceled.' : $json.error?.message || $json.error || $json.last_message || 'The agent job ended with status ' + $json.status }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lv-28",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -60
+      ],
+      "parameters": {
+        "width": 700,
+        "height": 1000,
+        "color": 1,
+        "content": "## Long video to captioned vertical clips, posted on a schedule\n\n**Who it's for:** podcasters, coaches, educators and marketing teams who record long videos and want a week of Shorts, Reels and TikToks out of each one, without an editor.\n\n**What it does:** you drop a video (file or link) into a form. **Rendley** transcribes it, OpenAI picks the strongest self-contained moments and writes a caption for each, and the **Rendley AI video agent** turns every moment into a vertical clip: cut to the moment, reframed to 9:16 so the speaker stays in frame, filler words removed, word-by-word captions. Rendley exports each clip and posts it to the accounts you connected (TikTok, YouTube, Instagram, X, LinkedIn and more), one clip at a time on the schedule you set.\n\n**Review built in:** every post waits in the Rendley content calendar until its time, so you can watch it, edit the project, reschedule or cancel.\n\n### Set up (about 5 minutes)\n1. In app.rendley.com connect your social accounts under **Social media** and create an API key (paid plan).\n2. Add credentials for Rendley and OpenAI. Pick your accounts in **Post the clip**.\n3. Adjust **Settings**, activate the workflow and open the form URL from **On form submission**.\n\n### Requirements\nRendley paid plan with credits and social publishing, OpenAI API key. One video with speech, up to the length your Rendley plan imports.\n\n### Customize\nNumber and length of clips, aspect ratio, caption look and the posting schedule live in **Settings**. What makes a good moment is in **Pick the best moments**. Set **postPartialClips** to true to also post clips the agent finished with warnings."
+      }
+    },
+    {
+      "id": "lv-29",
+      "name": "Step 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        60
+      ],
+      "parameters": {
+        "width": 1640,
+        "height": 560,
+        "color": 7,
+        "content": "### 1. The video comes in\nThe form takes a file or a public link. Rendley stores it in a new project, so the original stays in your library."
+      }
+    },
+    {
+      "id": "lv-30",
+      "name": "Step 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        60
+      ],
+      "parameters": {
+        "width": 1060,
+        "height": 640,
+        "color": 7,
+        "content": "### 2. Find the moments\nRendley transcribes the video with word timings. OpenAI reads the timed transcript and picks the strongest self-contained moments, each with a title, caption and hashtags."
+      }
+    },
+    {
+      "id": "lv-31",
+      "name": "Step 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2700,
+        60
+      ],
+      "parameters": {
+        "width": 1180,
+        "height": 460,
+        "color": 7,
+        "content": "### 3. Cut every clip\nOne Rendley agent run per moment: cut to the moment, reframe to 9:16 with subject tracking, remove filler words, add word-by-word captions. The loop checks the jobs every minute."
+      }
+    },
+    {
+      "id": "lv-32",
+      "name": "Step 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3900,
+        40
+      ],
+      "parameters": {
+        "width": 960,
+        "height": 580,
+        "color": 7,
+        "content": "### 4. Export and post\nEach clip is exported in 1080p and posted to your accounts on the schedule from **Settings**. Until then it sits in the Rendley content calendar, where you can edit, reschedule or cancel it."
+      }
+    },
+    {
+      "id": "lv-33",
+      "name": "Errors",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3660,
+        680
+      ],
+      "parameters": {
+        "width": 1020,
+        "height": 360,
+        "color": 3,
+        "content": "### If a clip goes wrong\n- Finished with warnings: **Needs a look** with the editor link, not posted\n- Failed or too slow: **Clip failed** with the reason, other clips still post"
+      }
+    }
+  ],
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bring the file along",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Create source project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create source project": {
+      "main": [
+        [
+          {
+            "node": "Bring the file along",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bring the file along": {
+      "main": [
+        [
+          {
+            "node": "File uploaded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File uploaded?": {
+      "main": [
+        [
+          {
+            "node": "Upload the file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Import the link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload the file": {
+      "main": [
+        [
+          {
+            "node": "Get the file link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get the file link": {
+      "main": [
+        [
+          {
+            "node": "Source video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Import the link": {
+      "main": [
+        [
+          {
+            "node": "Source video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Source video": {
+      "main": [
+        [
+          {
+            "node": "Transcribe with Rendley",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe with Rendley": {
+      "main": [
+        [
+          {
+            "node": "Format transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format transcript": {
+      "main": [
+        [
+          {
+            "node": "Pick the best moments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Moment picker model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Pick the best moments",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Moments format": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Pick the best moments",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick the best moments": {
+      "main": [
+        [
+          {
+            "node": "One item per clip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per clip": {
+      "main": [
+        [
+          {
+            "node": "Cut the clip with Rendley AI agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cut the clip with Rendley AI agent": {
+      "main": [
+        [
+          {
+            "node": "Wait for the agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the agent": {
+      "main": [
+        [
+          {
+            "node": "Check agent job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check agent job": {
+      "main": [
+        [
+          {
+            "node": "Clip ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clip ready?": {
+      "main": [
+        [
+          {
+            "node": "Clean result?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clip failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Keep waiting?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean result?": {
+      "main": [
+        [
+          {
+            "node": "Export the clip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs a look",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export the clip": {
+      "main": [
+        [
+          {
+            "node": "Post the clip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clip failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post the clip": {
+      "main": [
+        [
+          {
+            "node": "Clip posted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clip failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep waiting?": {
+      "main": [
+        [
+          {
+            "node": "Wait for the agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel agent job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel agent job": {
+      "main": [
+        [
+          {
+            "node": "Clip failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
